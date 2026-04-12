@@ -36,7 +36,7 @@ body {
   display: flex; align-items: flex-start; justify-content: center;
 }
 #app {
-  width: 1304px; height: 1179px;
+  width: 1048px; height: 947px;
   position: relative; overflow: hidden;
   border-radius: 12px;
   box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(201,168,76,0.3);
@@ -227,7 +227,7 @@ body {
 
 /* ── GAME SCREEN ── */
 #screen-game { background:#0a0804; flex-direction:row; align-items:stretch; padding:0; }
-.game-left { width:1024px; flex-shrink:0; flex-grow:0; display:flex; flex-direction:column; }
+.game-left { width:768px; flex-shrink:0; flex-grow:0; display:flex; flex-direction:column; }
 .game-topbar {
   height:50px;
   background:linear-gradient(180deg, rgba(25,18,8,0.98) 0%, rgba(12,9,4,0.95) 100%);
@@ -249,7 +249,7 @@ body {
   background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
   border-radius:20px; padding:4px 12px;
 }
-#canvas-map { width:1024px; height:925px; flex-shrink:0; flex-grow:0; display:block; cursor:pointer; }
+#canvas-map { width:768px; height:693px; flex-shrink:0; flex-grow:0; display:block; cursor:pointer; }
 .game-bottom-panel {
   height:204px;
   background:linear-gradient(180deg, rgba(12,9,4,0.97) 0%, rgba(8,6,3,0.98) 100%);
@@ -671,16 +671,16 @@ const HOUSING = [
 const CLOTH_LABELS = ['None','Budget','Business','Executive'];
 
 const LOCATIONS = [
-  { id:'school',        name:'School',      x: 128, y: 195, hw: 122, hh: 195 },
-  { id:'home',          name:'Home',        x: 188, y: 412, hw: 100, hh: 112 },
-  { id:'employment',    name:'Employment',  x: 428, y: 292, hw:  90, hh: 144 },
-  { id:'globocorp',     name:'GloboCorp',   x: 838, y: 205, hw: 182, hh: 205 },
-  { id:'bank',          name:'Bank',        x: 716, y: 390, hw: 112, hh: 136 },
-  { id:'entertainment', name:'Fun Zone',    x: 196, y: 707, hw: 140, hh: 185 },
-  { id:'grocery',       name:'Grocery',     x: 414, y: 788, hw:  84, hh: 126 },
-  { id:'gym',           name:'Gym',         x: 527, y: 768, hw:  96, hh: 138 },
-  { id:'clothing',      name:'Clothing',    x: 782, y: 678, hw: 102, hh: 162 },
-  { id:'fastfood',      name:'Fast Food',   x: 870, y: 870, hw: 150, hh:  55 },
+  { id:'school',        name:'School',      x: 200, y: 150, hw: 140, hh: 120 },
+  { id:'home',          name:'Home',        x: 162, y: 400, hw: 110, hh: 100 },
+  { id:'employment',    name:'Employment',  x: 545, y: 316, hw: 120, hh: 130 },
+  { id:'globocorp',     name:'GloboCorp',   x: 825, y: 123, hw: 120, hh: 100 },
+  { id:'bank',          name:'Bank',        x: 873, y: 375, hw: 120, hh: 120 },
+  { id:'entertainment', name:'Fun Zone',    x: 191, y: 625, hw: 130, hh: 100 },
+  { id:'grocery',       name:'Grocery',     x: 414, y: 722, hw:  84, hh: 100 },
+  { id:'gym',           name:'Gym',         x: 649, y: 688, hw:  96, hh: 108 },
+  { id:'clothing',      name:'Clothing',    x: 878, y: 607, hw: 102, hh: 102 },
+  { id:'fastfood',      name:'Fast Food',   x: 893, y: 805, hw: 110, hh: 90 },
 ];
 
 const ACTIVITIES = {
@@ -824,6 +824,10 @@ function sfxVictory()  {
 // ============================================================
 let canvas, ctx2d;
 let hoveredBuilding = null;
+let debugMode = false;
+let debugMouseX = 0;
+let debugMouseY = 0;
+let debugActiveLoc = null;
 let playerSprites = {};
 let animFrame = 0;
 let lastAnimTime = 0;
@@ -1075,14 +1079,72 @@ function renderMap() {
 
   if (!gs) { requestAnimationFrame(renderMap); return; }
 
-  // ── Hover highlight ──
-  if (hoveredBuilding) {
+  // ── Debug overlay (toggle with D key) ──
+  if (debugMode) {
+    LOCATIONS.forEach(loc => {
+      const isHovered = loc.id === hoveredBuilding;
+      const isActive  = loc.id === debugActiveLoc;
+
+      // Box fill
+      c.fillStyle = isActive  ? 'rgba(255,80,80,0.35)' :
+                    isHovered ? 'rgba(255,220,50,0.35)' :
+                                'rgba(50,180,255,0.20)';
+      c.fillRect(loc.x - loc.hw, loc.y - loc.hh, loc.hw * 2, loc.hh * 2);
+
+      // Box border
+      c.strokeStyle = isActive  ? '#ff5050' :
+                      isHovered ? '#ffdc32' :
+                                  '#32b4ff';
+      c.lineWidth = isHovered || isActive ? 2.5 : 1.5;
+      c.strokeRect(loc.x - loc.hw, loc.y - loc.hh, loc.hw * 2, loc.hh * 2);
+
+      // Center crosshair
+      c.strokeStyle = isActive ? '#ff5050' : 'rgba(255,255,255,0.7)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(loc.x - 6, loc.y); c.lineTo(loc.x + 6, loc.y);
+      c.moveTo(loc.x, loc.y - 6); c.lineTo(loc.x, loc.y + 6);
+      c.stroke();
+
+      // Label background + text
+      const label = `${loc.name}`;
+      const detail = `x:${loc.x} y:${loc.y} hw:${loc.hw} hh:${loc.hh}`;
+      c.font = 'bold 11px monospace';
+      const lw = Math.max(c.measureText(label).width, c.measureText(detail).width) + 8;
+      const lx = Math.min(loc.x - lw/2, 1024 - lw - 2);
+      const ly = Math.max(loc.y - loc.hh - 36, 2);
+      c.fillStyle = 'rgba(0,0,0,0.75)';
+      c.fillRect(lx, ly, lw, 30);
+      c.fillStyle = isActive ? '#ff9090' : isHovered ? '#ffdc32' : '#aaddff';
+      c.textAlign = 'left';
+      c.textBaseline = 'top';
+      c.fillText(label,  lx + 4, ly + 2);
+      c.fillStyle = '#ffffff';
+      c.font = '10px monospace';
+      c.fillText(detail, lx + 4, ly + 15);
+    });
+
+    // Live cursor coords HUD
+    c.fillStyle = 'rgba(0,0,0,0.82)';
+    c.fillRect(4, 4, 260, 44);
+    c.fillStyle = '#ffdc32';
+    c.font = 'bold 12px monospace';
+    c.textAlign = 'left';
+    c.textBaseline = 'top';
+    c.fillText('🛠  DEBUG MODE  (D to exit)', 10, 8);
+    c.fillStyle = '#ffffff';
+    c.font = '11px monospace';
+    c.fillText(`Canvas coords → x: ${debugMouseX}  y: ${debugMouseY}`, 10, 25);
+  }
+
+  // ── Hover highlight (normal mode) ──
+  if (!debugMode && hoveredBuilding) {
     const loc = LOCATIONS.find(l => l.id === hoveredBuilding);
     if (loc) drawBuildingHighlight(c, loc);
   }
 
   // ── Always show label for hovered building ──
-  if (hoveredBuilding) {
+  if (!debugMode && hoveredBuilding) {
     const loc = LOCATIONS.find(l => l.id === hoveredBuilding);
     if (loc) drawLocationLabel(c, loc);
   }
@@ -1114,10 +1176,20 @@ function initCanvas() {
     requestAnimationFrame(renderMap);
   });
 
+  // D key toggles debug overlay
+  document.addEventListener('keydown', e => {
+    if (e.key === 'd' || e.key === 'D') debugMode = !debugMode;
+  });
+
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const scaleX = 1024 / rect.width;
+    const scaleY = 925  / rect.height;
+    const mx = Math.round((e.clientX - rect.left) * scaleX);
+    const my = Math.round((e.clientY - rect.top)  * scaleY);
+
+    debugMouseX = mx;
+    debugMouseY = my;
 
     let found = null;
     LOCATIONS.forEach(loc => {
@@ -1128,9 +1200,9 @@ function initCanvas() {
     hoveredBuilding = found;
     canvas.style.cursor = found ? 'pointer' : 'default';
 
-    // Tooltip
+    // Tooltip (normal mode only)
     const tooltip = document.getElementById('tooltip');
-    if (found) {
+    if (found && !debugMode) {
       const loc = LOCATIONS.find(l => l.id === found);
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX + 14) + 'px';
